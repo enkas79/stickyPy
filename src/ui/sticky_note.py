@@ -126,7 +126,8 @@ class StickyNote(QWidget):
         top_bar.addWidget(color_btn)
 
         opacity_btn = QPushButton("◐")
-        opacity_btn.setFixedSize(22, 22)
+        opacity_btn.setObjectName("opacityButton")
+        opacity_btn.setFixedSize(26, 26)
         opacity_btn.setToolTip("Cambia trasparenza (Ctrl+rotellina sul testo: dimensione carattere)")
         opacity_btn.clicked.connect(self._cycle_opacity)
         top_bar.addWidget(opacity_btn)
@@ -134,7 +135,7 @@ class StickyNote(QWidget):
         self.title_edit = QLineEdit(self.data.title)
         self.title_edit.setToolTip("Rinomina la nota (es. per raggruppare un macro-argomento)")
         self.title_edit.setFrame(False)
-        self.title_edit.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.title_edit.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.title_edit.editingFinished.connect(self._on_title_changed)
         self.title_edit.returnPressed.connect(lambda: self.text_edit.setFocus())
         top_bar.addWidget(self.title_edit, 1)
@@ -164,6 +165,7 @@ class StickyNote(QWidget):
             "QTextEdit { background: transparent; border: none; }"
             "QPushButton { background: transparent; border: none; }"
             "QPushButton:hover { background: rgba(0,0,0,30); border-radius: 4px; }"
+            "QPushButton#opacityButton { font-size: 16px; }"
             "QLineEdit { background: transparent; border: none; font-weight: bold; font-size: 12px; }"
             "QLineEdit:focus { background: rgba(255,255,255,90); border-radius: 3px; }"
             "QLabel { background: transparent; border-radius: 4px; }"
