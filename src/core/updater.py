@@ -1,6 +1,7 @@
 """Controllo aggiornamenti in background tramite GitHub Releases API."""
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import requests
@@ -11,7 +12,10 @@ RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
 
 def get_current_version() -> str:
-    version_file = Path(__file__).resolve().parent.parent.parent / "version.txt"
+    # In un eseguibile PyInstaller, version.txt viene copiato nella cartella
+    # temporanea di estrazione (sys._MEIPASS) tramite --add-data.
+    base_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent.parent))
+    version_file = base_dir / "version.txt"
     try:
         return version_file.read_text(encoding="utf-8").strip()
     except OSError:
