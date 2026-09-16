@@ -25,33 +25,70 @@ CHECKBOX_CHECKED = "[x]"
 
 
 class ChecklistTextEdit(QTextEdit):
-    """QTextEdit che permette di spuntare voci "[ ] ..." con un click e
-    di regolare la dimensione del testo con Ctrl+rotellina."""
+    """QTextEdit che permette di spuntare voci "[ ] ..." con un click o dal
+    menu del tasto destro, e di regolare la dimensione del testo con
+    Ctrl+rotellina."""
 
     font_size_requested = pyqtSignal(int)  # delta (+1/-1)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
-        if event.button() == Qt.MouseButton.LeftButton and self._toggle_checkbox_at(event.pos()):
-            return
+        if event.button() == Qt.MouseButton.LeftButton:
+            block = self.cursorForPosition(event.pos()).block()
+            marker_info = self._checkbox_marker(block)
+            if marker_info is not None:
+                leading_ws, marker = marker_info
+                position_in_block = self.cursorForPosition(event.pos()).positionInBlock()
+                if leading_ws <= position_in_block <= leading_ws + len(marker):
+                    self._toggle_checkbox(block)
+                    return
         super().mousePressEvent(event)
 
-    def _toggle_checkbox_at(self, pos) -> bool:
-        cursor = self.cursorForPosition(pos)
-        block = cursor.block()
+    def contextMenuEvent(self, event) -> None:  # noqa: N802
+        clicked_cursor = self.cursorForPosition(event.pos())
+        self.setTextCursor(clicked_cursor)
+        block = clicked_cursor.block()
+
+        menu = self.createStandardContextMenu()
+        menu.addSeparator()
+
+        insert_action = menu.addAction("Inserisci voce elenco [ ]")
+        insert_action.triggered.connect(lambda: self._insert_checklist_marker(block))
+
+        if self._checkbox_marker(block) is not None:
+            toggle_action = menu.addAction("Spunta/togli spunta riga")
+            toggle_action.triggered.connect(lambda: self._toggle_checkbox(block))
+
+        menu.exec(event.globalPos())
+
+    @staticmethod
+    def _checkbox_marker(block) -> tuple[int, str] | None:
         text = block.text()
         stripped = text.lstrip()
         leading_ws = len(text) - len(stripped)
         marker = stripped[:3]
-        if marker not in (CHECKBOX_UNCHECKED, CHECKBOX_CHECKED):
-            return False
-        if not (leading_ws <= cursor.positionInBlock() <= leading_ws + len(marker)):
-            return False
+        if marker in (CHECKBOX_UNCHECKED, CHECKBOX_CHECKED):
+            return leading_ws, marker
+        return None
+
+    def _toggle_checkbox(self, block) -> None:
+        marker_info = self._checkbox_marker(block)
+        if marker_info is None:
+            return
+        leading_ws, marker = marker_info
         new_marker = CHECKBOX_CHECKED if marker == CHECKBOX_UNCHECKED else CHECKBOX_UNCHECKED
-        toggle_cursor = QTextCursor(block)
-        toggle_cursor.setPosition(block.position() + leading_ws)
-        toggle_cursor.setPosition(block.position() + leading_ws + len(marker), QTextCursor.MoveMode.KeepAnchor)
-        toggle_cursor.insertText(new_marker)
-        return True
+        cursor = QTextCursor(block)
+        cursor.setPosition(block.position() + leading_ws)
+        cursor.setPosition(block.position() + leading_ws + len(marker), QTextCursor.MoveMode.KeepAnchor)
+        cursor.insertText(new_marker)
+
+    def _insert_checklist_marker(self, block) -> None:
+        if self._checkbox_marker(block) is not None:
+            return
+        text = block.text()
+        leading_ws = len(text) - len(text.lstrip())
+        cursor = QTextCursor(block)
+        cursor.setPosition(block.position() + leading_ws)
+        cursor.insertText(f"{CHECKBOX_UNCHECKED} ")
 
     def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802
         if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
