@@ -85,6 +85,7 @@ class StickyNote(QWidget):
         self.title_edit.setFrame(False)
         self.title_edit.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.title_edit.editingFinished.connect(self._on_title_changed)
+        self.title_edit.returnPressed.connect(lambda: self.text_edit.setFocus())
         top_bar.addWidget(self.title_edit, 1)
 
         close_btn = QPushButton("✕")
