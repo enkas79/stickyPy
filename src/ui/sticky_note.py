@@ -54,6 +54,16 @@ class NoteTextEdit(QTextEdit):
             strike_action.triggered.connect(lambda: self._toggle_strike(block))
         menu.exec(event.globalPos())
 
+    def keyPressEvent(self, event) -> None:  # noqa: N802
+        # Impedisce che il testo digitato erediti la barratura applicata a
+        # una riga: la barratura vale solo per il testo già presente in
+        # quella riga al momento dell'azione, mai per ciò che si scrive dopo.
+        current_format = self.currentCharFormat()
+        if current_format.fontStrikeOut():
+            current_format.setFontStrikeOut(False)
+            self.setCurrentCharFormat(current_format)
+        super().keyPressEvent(event)
+
     def _toggle_strike(self, block) -> None:
         cursor = QTextCursor(block)
         cursor.movePosition(QTextCursor.MoveOperation.StartOfBlock)
