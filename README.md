@@ -19,3 +19,10 @@ pytest
 - Icona nella system tray per creare note e accedere alla gestione.
 - Avvio automatico con il sistema operativo (Windows/Linux/macOS).
 - Controllo aggiornamenti da GitHub Releases.
+
+## Build installer
+Il workflow `.github/workflows/build-installers.yml` si attiva a ogni modifica di
+`version.txt` su `main` e pubblica una GitHub Release con:
+- `StickyPy-Setup-<versione>.exe` (Windows, via NSIS)
+- `StickyPy-<versione>.dmg` (macOS)
+- `stickypy_<versione>_amd64.deb` (Linux)

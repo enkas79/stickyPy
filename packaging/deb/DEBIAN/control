@@ -1,0 +1,9 @@
+Package: stickypy
+Version: __VERSION__
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: enkas79 <enkas79@gmail.com>
+Description: Note adesive per il desktop
+ StickyPy mostra post-it flottanti sul desktop per appunti e cose da fare,
+ con avvio automatico e controllo aggiornamenti integrato.

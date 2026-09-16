@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=StickyPy
+Comment=Note adesive per il desktop
+Exec=stickypy
+Icon=stickypy
+Terminal=false
+Categories=Utility;Office;
