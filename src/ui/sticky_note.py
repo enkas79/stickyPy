@@ -39,6 +39,15 @@ class NoteTextEdit(QTextEdit):
         block = clicked_cursor.block()
 
         menu = self.createStandardContextMenu()
+        # Il menu eredita lo stylesheet trasparente della nota: forziamo
+        # colori propri per restare leggibile sopra qualsiasi sfondo.
+        menu.setStyleSheet(
+            "QMenu { background-color: #FFFFFF; color: #202020; border: 1px solid #B0B0B0; }"
+            "QMenu::item { padding: 4px 20px; }"
+            "QMenu::item:selected { background-color: #D0D0D0; }"
+            "QMenu::item:disabled { color: #A0A0A0; }"
+            "QMenu::separator { height: 1px; background: #C0C0C0; margin: 4px 0; }"
+        )
         if block.length() > 1:  # esclude righe vuote (solo il separatore di paragrafo)
             menu.addSeparator()
             strike_action = menu.addAction("Barra/sbarra riga")
