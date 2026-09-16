@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import QPoint, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QMouseEvent
+from PyQt6.QtGui import QColor, QMouseEvent, QTextCursor, QWheelEvent
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -17,6 +17,49 @@ from PyQt6.QtWidgets import (
 from src.core.storage import NoteData
 
 COLORS = ["#FFF59D", "#A5D6A7", "#90CAF9", "#F48FB1", "#FFCC80", "#CE93D8"]
+OPACITIES = [1.0, 0.85, 0.7, 0.55]
+MIN_FONT_SIZE = 8
+MAX_FONT_SIZE = 32
+CHECKBOX_UNCHECKED = "[ ]"
+CHECKBOX_CHECKED = "[x]"
+
+
+class ChecklistTextEdit(QTextEdit):
+    """QTextEdit che permette di spuntare voci "[ ] ..." con un click e
+    di regolare la dimensione del testo con Ctrl+rotellina."""
+
+    font_size_requested = pyqtSignal(int)  # delta (+1/-1)
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        if event.button() == Qt.MouseButton.LeftButton and self._toggle_checkbox_at(event.pos()):
+            return
+        super().mousePressEvent(event)
+
+    def _toggle_checkbox_at(self, pos) -> bool:
+        cursor = self.cursorForPosition(pos)
+        block = cursor.block()
+        text = block.text()
+        stripped = text.lstrip()
+        leading_ws = len(text) - len(stripped)
+        marker = stripped[:3]
+        if marker not in (CHECKBOX_UNCHECKED, CHECKBOX_CHECKED):
+            return False
+        if not (leading_ws <= cursor.positionInBlock() <= leading_ws + len(marker)):
+            return False
+        new_marker = CHECKBOX_CHECKED if marker == CHECKBOX_UNCHECKED else CHECKBOX_UNCHECKED
+        toggle_cursor = QTextCursor(block)
+        toggle_cursor.setPosition(block.position() + leading_ws)
+        toggle_cursor.setPosition(block.position() + leading_ws + len(marker), QTextCursor.MoveMode.KeepAnchor)
+        toggle_cursor.insertText(new_marker)
+        return True
+
+    def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            delta = 1 if event.angleDelta().y() > 0 else -1
+            self.font_size_requested.emit(delta)
+            event.accept()
+        else:
+            super().wheelEvent(event)
 
 
 class DragHandle(QLabel):
@@ -61,6 +104,8 @@ class StickyNote(QWidget):
         self._drag_offset: QPoint | None = None
         self._build_ui()
         self.apply_color(data.color)
+        self._apply_font_size()
+        self.setWindowOpacity(data.opacity)
         self.move(data.x, data.y)
         self.resize(data.width, data.height)
 
@@ -80,6 +125,12 @@ class StickyNote(QWidget):
         color_btn.clicked.connect(self._cycle_color)
         top_bar.addWidget(color_btn)
 
+        opacity_btn = QPushButton("◐")
+        opacity_btn.setFixedSize(22, 22)
+        opacity_btn.setToolTip("Cambia trasparenza (Ctrl+rotellina sul testo: dimensione carattere)")
+        opacity_btn.clicked.connect(self._cycle_opacity)
+        top_bar.addWidget(opacity_btn)
+
         self.title_edit = QLineEdit(self.data.title)
         self.title_edit.setToolTip("Rinomina la nota (es. per raggruppare un macro-argomento)")
         self.title_edit.setFrame(False)
@@ -95,10 +146,11 @@ class StickyNote(QWidget):
         top_bar.addWidget(close_btn)
         layout.addLayout(top_bar)
 
-        self.text_edit = QTextEdit()
+        self.text_edit = ChecklistTextEdit()
         self.text_edit.setPlainText(self.data.text)
         self.text_edit.setFrameStyle(0)
         self.text_edit.textChanged.connect(self._on_text_changed)
+        self.text_edit.font_size_requested.connect(self._adjust_font_size)
         layout.addWidget(self.text_edit)
 
         grip = QSizeGrip(self)
@@ -109,7 +161,7 @@ class StickyNote(QWidget):
         color = QColor(hex_color)
         self.setStyleSheet(
             f"QWidget {{ background-color: {color.name()}; }}"
-            "QTextEdit { background: transparent; border: none; font-size: 13px; }"
+            "QTextEdit { background: transparent; border: none; }"
             "QPushButton { background: transparent; border: none; }"
             "QPushButton:hover { background: rgba(0,0,0,30); border-radius: 4px; }"
             "QLineEdit { background: transparent; border: none; font-weight: bold; font-size: 12px; }"
@@ -122,6 +174,23 @@ class StickyNote(QWidget):
         current_index = COLORS.index(self.data.color) if self.data.color in COLORS else -1
         next_color = COLORS[(current_index + 1) % len(COLORS)]
         self.apply_color(next_color)
+        self.changed.emit()
+
+    def _cycle_opacity(self) -> None:
+        current_index = OPACITIES.index(self.data.opacity) if self.data.opacity in OPACITIES else 0
+        new_opacity = OPACITIES[(current_index + 1) % len(OPACITIES)]
+        self.data.opacity = new_opacity
+        self.setWindowOpacity(new_opacity)
+        self.changed.emit()
+
+    def _apply_font_size(self) -> None:
+        font = self.text_edit.font()
+        font.setPointSize(self.data.font_size)
+        self.text_edit.setFont(font)
+
+    def _adjust_font_size(self, delta: int) -> None:
+        self.data.font_size = max(MIN_FONT_SIZE, min(MAX_FONT_SIZE, self.data.font_size + delta))
+        self._apply_font_size()
         self.changed.emit()
 
     def _on_title_changed(self) -> None:

@@ -34,6 +34,8 @@ class NoteData:
     height: int = 220
     color: str = "#FFF59D"
     title: str = "StickyPy"
+    opacity: float = 1.0
+    font_size: int = 13
 
 
 def load_notes() -> list[NoteData]:
