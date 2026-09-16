@@ -33,6 +33,7 @@ class NoteData:
     width: int = 220
     height: int = 220
     color: str = "#FFF59D"
+    title: str = "StickyPy"
 
 
 def load_notes() -> list[NoteData]:

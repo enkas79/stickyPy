@@ -5,6 +5,7 @@ from PyQt6.QtCore import QPoint, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QMouseEvent
 from PyQt6.QtWidgets import (
     QHBoxLayout,
+    QLineEdit,
     QPushButton,
     QSizeGrip,
     QTextEdit,
@@ -36,7 +37,7 @@ class StickyNote(QWidget):
         self.resize(data.width, data.height)
 
     def _build_ui(self) -> None:
-        self.setWindowTitle("StickyPy - Nota")
+        self.setWindowTitle(self.data.title)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(2)
@@ -47,7 +48,14 @@ class StickyNote(QWidget):
         color_btn.setToolTip("Cambia colore")
         color_btn.clicked.connect(self._cycle_color)
         top_bar.addWidget(color_btn)
-        top_bar.addStretch()
+
+        self.title_edit = QLineEdit(self.data.title)
+        self.title_edit.setToolTip("Rinomina la nota (es. per raggruppare un macro-argomento)")
+        self.title_edit.setFrame(False)
+        self.title_edit.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.title_edit.editingFinished.connect(self._on_title_changed)
+        top_bar.addWidget(self.title_edit, 1)
+
         close_btn = QPushButton("✕")
         close_btn.setFixedSize(22, 22)
         close_btn.setToolTip("Chiudi nota")
@@ -72,12 +80,20 @@ class StickyNote(QWidget):
             "QTextEdit { background: transparent; border: none; font-size: 13px; }"
             "QPushButton { background: transparent; border: none; }"
             "QPushButton:hover { background: rgba(0,0,0,30); border-radius: 4px; }"
+            "QLineEdit { background: transparent; border: none; font-weight: bold; font-size: 12px; }"
+            "QLineEdit:focus { background: rgba(255,255,255,90); border-radius: 3px; }"
         )
 
     def _cycle_color(self) -> None:
         current_index = COLORS.index(self.data.color) if self.data.color in COLORS else -1
         next_color = COLORS[(current_index + 1) % len(COLORS)]
         self.apply_color(next_color)
+        self.changed.emit()
+
+    def _on_title_changed(self) -> None:
+        self.data.title = self.title_edit.text().strip() or "StickyPy"
+        self.title_edit.setText(self.data.title)
+        self.setWindowTitle(self.data.title)
         self.changed.emit()
 
     def _on_text_changed(self) -> None:
