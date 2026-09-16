@@ -26,11 +26,12 @@ APP_AUTHOR = "enkas79"
 class ManagerWindow(QMainWindow):
     """Finestra principale con QMenuBar, richiesta dalle linee guida del progetto."""
 
-    def __init__(self, new_note_callback, quit_callback, get_notes_callback):
+    def __init__(self, new_note_callback, quit_callback, get_notes_callback, toggle_autostart_callback):
         super().__init__()
         self._new_note_callback = new_note_callback
         self._quit_callback = quit_callback
         self._get_notes_callback = get_notes_callback
+        self._toggle_autostart_callback = toggle_autostart_callback
         self._update_checker: UpdateChecker | None = None
 
         self.setWindowTitle("StickyPy - Gestione note")
@@ -108,13 +109,7 @@ class ManagerWindow(QMainWindow):
         help_menu.addAction(guide_action)
 
     def _on_autostart_toggled(self, checked: bool) -> None:
-        try:
-            if checked:
-                autostart.enable()
-            else:
-                autostart.disable()
-        except OSError as exc:
-            QMessageBox.warning(self, "Avvio automatico", f"Impossibile aggiornare l'avvio automatico:\n{exc}")
+        self._toggle_autostart_callback(checked)
 
     def _export_notes(self) -> None:
         notes = self._get_notes_callback()

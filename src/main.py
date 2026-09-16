@@ -8,8 +8,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction, QIcon, QKeySequence, QPixmap, QPainter, QColor, QShortcut
-from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
+from PyQt6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
+from src.core import autostart
 from src.core.storage import NoteData, load_notes, save_notes
 from src.ui.manager_window import ManagerWindow
 from src.ui.sticky_note import StickyNote
@@ -37,6 +38,7 @@ class StickyPyApp:
             new_note_callback=self.create_new_note,
             quit_callback=self.quit,
             get_notes_callback=lambda: self.notes,
+            toggle_autostart_callback=self.set_autostart,
         )
 
         self.tray_icon = QSystemTrayIcon(_build_tray_icon(), app)
@@ -68,6 +70,14 @@ class StickyPyApp:
 
         menu.addSeparator()
 
+        self.tray_autostart_action = QAction("Avvia con il PC", menu)
+        self.tray_autostart_action.setCheckable(True)
+        self.tray_autostart_action.setChecked(autostart.is_enabled())
+        self.tray_autostart_action.toggled.connect(self.set_autostart)
+        menu.addAction(self.tray_autostart_action)
+
+        menu.addSeparator()
+
         quit_action = QAction("Esci", menu)
         quit_action.triggered.connect(self.quit)
         menu.addAction(quit_action)
@@ -82,6 +92,26 @@ class StickyPyApp:
         self.manager_window.show()
         self.manager_window.raise_()
         self.manager_window.activateWindow()
+
+    def set_autostart(self, checked: bool) -> None:
+        try:
+            if checked:
+                autostart.enable()
+            else:
+                autostart.disable()
+        except OSError as exc:
+            QMessageBox.warning(
+                self.manager_window, "Avvio automatico", f"Impossibile aggiornare l'avvio automatico:\n{exc}"
+            )
+            checked = autostart.is_enabled()
+        self._sync_autostart_actions(checked)
+
+    def _sync_autostart_actions(self, checked: bool) -> None:
+        for action in (self.manager_window.autostart_action, self.tray_autostart_action):
+            if action.isChecked() != checked:
+                action.blockSignals(True)
+                action.setChecked(checked)
+                action.blockSignals(False)
 
     def raise_all_notes(self) -> None:
         for note in self.notes.values():

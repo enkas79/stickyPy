@@ -19,7 +19,8 @@ selezionare.</li>
 <li>Tutte le note vengono salvate automaticamente e ripristinate al riavvio.</li>
 <li><b>Ctrl+N</b> crea una nuova nota da qualsiasi punto dell'app.</li>
 <li>Dal menu <b>Aiuto</b> puoi controllare gli aggiornamenti disponibili.</li>
-<li>Abilita l'<b>avvio automatico</b> dal menu File per far partire StickyPy con il PC.</li>
+<li>Abilita l'<b>avvio automatico</b> dal menu File o dal menu del tray
+("Avvia con il PC") per far partire StickyPy con il PC.</li>
 <li>Dalla finestra <b>Gestione note</b> vedi l'elenco di tutte le note aperte:
 doppio click per portarne una in primo piano, oppure usa "Porta tutte in
 primo piano" dal menu del tray.</li>

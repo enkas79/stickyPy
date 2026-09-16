@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import os
+import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -44,12 +46,23 @@ def load_notes() -> list[NoteData]:
         return []
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+        return [NoteData(**item) for item in raw]
+    except (json.JSONDecodeError, OSError, TypeError):
+        # File corrotto (es. scrittura interrotta da uno spegnimento improvviso):
+        # lo mettiamo da parte invece di lasciarlo sovrascrivere e perdere i dati.
+        backup_path = path.with_name(f"{path.stem}.corrotto-{int(time.time())}{path.suffix}")
+        try:
+            path.replace(backup_path)
+        except OSError:
+            pass
         return []
-    return [NoteData(**item) for item in raw]
 
 
 def save_notes(notes: list[NoteData]) -> None:
+    """Scrittura atomica: evita di lasciare notes.json a metà se l'app
+    viene interrotta bruscamente (es. spegnimento del PC) durante il salvataggio."""
     path = get_notes_path()
     payload = [asdict(note) for note in notes]
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    tmp_path = path.with_suffix(f"{path.suffix}.tmp")
+    tmp_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp_path, path)
