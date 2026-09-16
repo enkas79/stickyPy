@@ -3,8 +3,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
-from PyQt6.QtWidgets import QLabel, QMainWindow, QMessageBox, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import (
+    QFileDialog,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMainWindow,
+    QMessageBox,
+    QVBoxLayout,
+    QWidget,
+)
 
 from src.core import autostart
 from src.core.updater import UpdateChecker, get_current_version
@@ -16,22 +26,48 @@ APP_AUTHOR = "enkas79"
 class ManagerWindow(QMainWindow):
     """Finestra principale con QMenuBar, richiesta dalle linee guida del progetto."""
 
-    def __init__(self, new_note_callback, quit_callback):
+    def __init__(self, new_note_callback, quit_callback, get_notes_callback):
         super().__init__()
         self._new_note_callback = new_note_callback
         self._quit_callback = quit_callback
+        self._get_notes_callback = get_notes_callback
         self._update_checker: UpdateChecker | None = None
 
         self.setWindowTitle("StickyPy - Gestione note")
-        self.resize(380, 200)
+        self.resize(380, 320)
 
         central = QWidget()
         layout = QVBoxLayout(central)
         layout.addWidget(QLabel("StickyPy tiene le tue note sempre sul desktop."))
         layout.addWidget(QLabel(f"Versione corrente: {get_current_version()}"))
+        layout.addWidget(QLabel("Note aperte (doppio click per portarla in primo piano):"))
+
+        self.notes_list = QListWidget()
+        self.notes_list.itemDoubleClicked.connect(self._on_note_item_activated)
+        layout.addWidget(self.notes_list)
+
         self.setCentralWidget(central)
 
         self._build_menu()
+
+    def showEvent(self, event) -> None:  # noqa: N802 - override Qt
+        self._refresh_notes_list()
+        super().showEvent(event)
+
+    def _refresh_notes_list(self) -> None:
+        self.notes_list.clear()
+        for note_id, note in self._get_notes_callback().items():
+            item = QListWidgetItem(note.data.title)
+            item.setData(Qt.ItemDataRole.UserRole, note_id)
+            self.notes_list.addItem(item)
+
+    def _on_note_item_activated(self, item: QListWidgetItem) -> None:
+        note_id = item.data(Qt.ItemDataRole.UserRole)
+        note = self._get_notes_callback().get(note_id)
+        if note is not None:
+            note.show()
+            note.raise_()
+            note.activateWindow()
 
     def _build_menu(self) -> None:
         menu_bar = self.menuBar()
@@ -47,6 +83,10 @@ class ManagerWindow(QMainWindow):
         self.autostart_action.setChecked(autostart.is_enabled())
         self.autostart_action.toggled.connect(self._on_autostart_toggled)
         file_menu.addAction(self.autostart_action)
+
+        export_action = QAction("&Esporta note in .txt...", self)
+        export_action.triggered.connect(self._export_notes)
+        file_menu.addAction(export_action)
 
         file_menu.addSeparator()
         quit_action = QAction("&Esci", self)
@@ -75,6 +115,28 @@ class ManagerWindow(QMainWindow):
                 autostart.disable()
         except OSError as exc:
             QMessageBox.warning(self, "Avvio automatico", f"Impossibile aggiornare l'avvio automatico:\n{exc}")
+
+    def _export_notes(self) -> None:
+        notes = self._get_notes_callback()
+        if not notes:
+            QMessageBox.information(self, "Esporta note", "Non ci sono note da esportare.")
+            return
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Esporta note in .txt", "stickypy_note.txt", "File di testo (*.txt)"
+        )
+        if not file_path:
+            return
+
+        blocks = []
+        for note in notes.values():
+            blocks.append(f"# {note.data.title}\n{note.data.text}\n")
+        try:
+            Path(file_path).write_text("\n".join(blocks), encoding="utf-8")
+        except OSError as exc:
+            QMessageBox.warning(self, "Esporta note", f"Impossibile salvare il file:\n{exc}")
+            return
+        QMessageBox.information(self, "Esporta note", "Note esportate correttamente.")
 
     def _show_about(self) -> None:
         version = get_current_version()

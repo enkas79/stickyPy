@@ -6,7 +6,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from PyQt6.QtGui import QAction, QIcon, QPixmap, QPainter, QColor
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QAction, QIcon, QKeySequence, QPixmap, QPainter, QColor, QShortcut
 from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from src.core.storage import NoteData, load_notes, save_notes
@@ -35,6 +36,7 @@ class StickyPyApp:
         self.manager_window = ManagerWindow(
             new_note_callback=self.create_new_note,
             quit_callback=self.quit,
+            get_notes_callback=lambda: self.notes,
         )
 
         self.tray_icon = QSystemTrayIcon(_build_tray_icon(), app)
@@ -42,6 +44,10 @@ class StickyPyApp:
         self._build_tray_menu()
         self.tray_icon.activated.connect(self._on_tray_activated)
         self.tray_icon.show()
+
+        self._new_note_shortcut = QShortcut(QKeySequence("Ctrl+N"), self.manager_window)
+        self._new_note_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
+        self._new_note_shortcut.activated.connect(self.create_new_note)
 
         self._load_existing_notes()
 
@@ -55,6 +61,10 @@ class StickyPyApp:
         manage_action = QAction("Gestione note", menu)
         manage_action.triggered.connect(self._show_manager)
         menu.addAction(manage_action)
+
+        raise_all_action = QAction("Porta tutte in primo piano", menu)
+        raise_all_action.triggered.connect(self.raise_all_notes)
+        menu.addAction(raise_all_action)
 
         menu.addSeparator()
 
@@ -72,6 +82,12 @@ class StickyPyApp:
         self.manager_window.show()
         self.manager_window.raise_()
         self.manager_window.activateWindow()
+
+    def raise_all_notes(self) -> None:
+        for note in self.notes.values():
+            note.show()
+            note.raise_()
+            note.activateWindow()
 
     def _load_existing_notes(self) -> None:
         for data in load_notes():
