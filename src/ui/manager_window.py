@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QAction
+from PyQt6.QtGui import QAction, QTextDocument
 from PyQt6.QtWidgets import (
     QFileDialog,
     QLabel,
@@ -130,7 +130,9 @@ class ManagerWindow(QMainWindow):
 
         blocks = []
         for note in notes.values():
-            blocks.append(f"# {note.data.title}\n{note.data.text}\n")
+            document = QTextDocument()
+            document.setHtml(note.data.text)
+            blocks.append(f"# {note.data.title}\n{document.toPlainText()}\n")
         try:
             Path(file_path).write_text("\n".join(blocks), encoding="utf-8")
         except OSError as exc:

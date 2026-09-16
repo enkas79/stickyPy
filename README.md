@@ -17,7 +17,7 @@ pytest
 - Post-it flottanti, trascinabili (maniglia dedicata), ridimensionabili e colorabili.
 - Titolo modificabile per nota (utile per raggruppare macro-argomenti).
 - Trasparenza regolabile e dimensione del testo (Ctrl+rotellina).
-- Voci di lista `[ ]`/`[x]` spuntabili con un click.
+- Barra/sbarra una riga di testo dal menu del tasto destro, senza selezionarla.
 - Ctrl+N per una nuova nota da qualsiasi punto dell'app.
 - Finestra "Gestione note" con elenco delle note aperte (doppio click per portarle in primo piano).
 - "Porta tutte in primo piano" dal menu del tray.

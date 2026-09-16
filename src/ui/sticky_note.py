@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import QPoint, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QMouseEvent, QTextCursor, QWheelEvent
+from PyQt6.QtGui import QColor, QMouseEvent, QTextCharFormat, QTextCursor, QWheelEvent
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -20,28 +20,18 @@ COLORS = ["#FFF59D", "#A5D6A7", "#90CAF9", "#F48FB1", "#FFCC80", "#CE93D8"]
 OPACITIES = [1.0, 0.85, 0.7, 0.55]
 MIN_FONT_SIZE = 8
 MAX_FONT_SIZE = 32
-CHECKBOX_UNCHECKED = "[ ]"
-CHECKBOX_CHECKED = "[x]"
 
 
-class ChecklistTextEdit(QTextEdit):
-    """QTextEdit che permette di spuntare voci "[ ] ..." con un click o dal
-    menu del tasto destro, e di regolare la dimensione del testo con
+def looks_like_html(text: str) -> bool:
+    return "<html" in text.lower()
+
+
+class NoteTextEdit(QTextEdit):
+    """QTextEdit che permette di barrare una riga dal menu del tasto destro
+    (senza doverla selezionare) e di regolare la dimensione del testo con
     Ctrl+rotellina."""
 
     font_size_requested = pyqtSignal(int)  # delta (+1/-1)
-
-    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
-        if event.button() == Qt.MouseButton.LeftButton:
-            block = self.cursorForPosition(event.pos()).block()
-            marker_info = self._checkbox_marker(block)
-            if marker_info is not None:
-                leading_ws, marker = marker_info
-                position_in_block = self.cursorForPosition(event.pos()).positionInBlock()
-                if leading_ws <= position_in_block <= leading_ws + len(marker):
-                    self._toggle_checkbox(block)
-                    return
-        super().mousePressEvent(event)
 
     def contextMenuEvent(self, event) -> None:  # noqa: N802
         clicked_cursor = self.cursorForPosition(event.pos())
@@ -49,46 +39,22 @@ class ChecklistTextEdit(QTextEdit):
         block = clicked_cursor.block()
 
         menu = self.createStandardContextMenu()
-        menu.addSeparator()
-
-        insert_action = menu.addAction("Inserisci voce elenco [ ]")
-        insert_action.triggered.connect(lambda: self._insert_checklist_marker(block))
-
-        if self._checkbox_marker(block) is not None:
-            toggle_action = menu.addAction("Spunta/togli spunta riga")
-            toggle_action.triggered.connect(lambda: self._toggle_checkbox(block))
-
+        if block.length() > 1:  # esclude righe vuote (solo il separatore di paragrafo)
+            menu.addSeparator()
+            strike_action = menu.addAction("Barra/sbarra riga")
+            strike_action.triggered.connect(lambda: self._toggle_strike(block))
         menu.exec(event.globalPos())
 
-    @staticmethod
-    def _checkbox_marker(block) -> tuple[int, str] | None:
-        text = block.text()
-        stripped = text.lstrip()
-        leading_ws = len(text) - len(stripped)
-        marker = stripped[:3]
-        if marker in (CHECKBOX_UNCHECKED, CHECKBOX_CHECKED):
-            return leading_ws, marker
-        return None
-
-    def _toggle_checkbox(self, block) -> None:
-        marker_info = self._checkbox_marker(block)
-        if marker_info is None:
-            return
-        leading_ws, marker = marker_info
-        new_marker = CHECKBOX_CHECKED if marker == CHECKBOX_UNCHECKED else CHECKBOX_UNCHECKED
+    def _toggle_strike(self, block) -> None:
         cursor = QTextCursor(block)
-        cursor.setPosition(block.position() + leading_ws)
-        cursor.setPosition(block.position() + leading_ws + len(marker), QTextCursor.MoveMode.KeepAnchor)
-        cursor.insertText(new_marker)
-
-    def _insert_checklist_marker(self, block) -> None:
-        if self._checkbox_marker(block) is not None:
+        cursor.movePosition(QTextCursor.MoveOperation.StartOfBlock)
+        cursor.movePosition(QTextCursor.MoveOperation.EndOfBlock, QTextCursor.MoveMode.KeepAnchor)
+        if not cursor.hasSelection():
             return
-        text = block.text()
-        leading_ws = len(text) - len(text.lstrip())
-        cursor = QTextCursor(block)
-        cursor.setPosition(block.position() + leading_ws)
-        cursor.insertText(f"{CHECKBOX_UNCHECKED} ")
+        is_struck = cursor.charFormat().fontStrikeOut()
+        new_format = QTextCharFormat()
+        new_format.setFontStrikeOut(not is_struck)
+        cursor.mergeCharFormat(new_format)
 
     def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802
         if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
@@ -184,8 +150,11 @@ class StickyNote(QWidget):
         top_bar.addWidget(close_btn)
         layout.addLayout(top_bar)
 
-        self.text_edit = ChecklistTextEdit()
-        self.text_edit.setPlainText(self.data.text)
+        self.text_edit = NoteTextEdit()
+        if looks_like_html(self.data.text):
+            self.text_edit.setHtml(self.data.text)
+        else:
+            self.text_edit.setPlainText(self.data.text)
         self.text_edit.setFrameStyle(0)
         self.text_edit.textChanged.connect(self._on_text_changed)
         self.text_edit.font_size_requested.connect(self._adjust_font_size)
@@ -239,7 +208,7 @@ class StickyNote(QWidget):
         self.changed.emit()
 
     def _on_text_changed(self) -> None:
-        self.data.text = self.text_edit.toPlainText()
+        self.data.text = self.text_edit.toHtml()
         self.changed.emit()
 
     def _on_close(self) -> None:
