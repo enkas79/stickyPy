@@ -5,6 +5,7 @@ from PyQt6.QtCore import QPoint, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QMouseEvent
 from PyQt6.QtWidgets import (
     QHBoxLayout,
+    QLabel,
     QLineEdit,
     QPushButton,
     QSizeGrip,
@@ -16,6 +17,33 @@ from PyQt6.QtWidgets import (
 from src.core.storage import NoteData
 
 COLORS = ["#FFF59D", "#A5D6A7", "#90CAF9", "#F48FB1", "#FFCC80", "#CE93D8"]
+
+
+class DragHandle(QLabel):
+    """Maniglia con icona a croce per spostare la nota trascinandola."""
+
+    def __init__(self, target: QWidget, parent=None):
+        super().__init__("✥", parent)
+        self._target = target
+        self._drag_offset: QPoint | None = None
+        self.setFixedSize(22, 22)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setCursor(Qt.CursorShape.SizeAllCursor)
+        self.setToolTip("Trascina per spostare la nota")
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_offset = event.globalPosition().toPoint() - self._target.pos()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        if self._drag_offset is not None and event.buttons() & Qt.MouseButton.LeftButton:
+            self._target.move(event.globalPosition().toPoint() - self._drag_offset)
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        self._drag_offset = None
+        super().mouseReleaseEvent(event)
 
 
 class StickyNote(QWidget):
@@ -43,6 +71,9 @@ class StickyNote(QWidget):
         layout.setSpacing(2)
 
         top_bar = QHBoxLayout()
+        drag_handle = DragHandle(self)
+        top_bar.addWidget(drag_handle)
+
         color_btn = QPushButton("\U0001F3A8")
         color_btn.setFixedSize(22, 22)
         color_btn.setToolTip("Cambia colore")
@@ -82,6 +113,8 @@ class StickyNote(QWidget):
             "QPushButton:hover { background: rgba(0,0,0,30); border-radius: 4px; }"
             "QLineEdit { background: transparent; border: none; font-weight: bold; font-size: 12px; }"
             "QLineEdit:focus { background: rgba(255,255,255,90); border-radius: 3px; }"
+            "QLabel { background: transparent; border-radius: 4px; }"
+            "QLabel:hover { background: rgba(0,0,0,30); }"
         )
 
     def _cycle_color(self) -> None:
