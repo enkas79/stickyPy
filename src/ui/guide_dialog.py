@@ -12,10 +12,9 @@ GUIDE_HTML = """
 <li>Il pulsante <b>tavolozza</b> cambia il colore della nota.</li>
 <li>Il pulsante <b>◐</b> cicla la trasparenza della nota.</li>
 <li><b>Ctrl+rotellina</b> sul testo cambia la dimensione del carattere.</li>
-<li>Scrivi <code>[ ] voce</code> per creare una voce di lista: un click sulla
-casella la spunta in <code>[x] voce</code>. In alternativa, tasto destro su
-una riga per <b>inserire</b> o <b>spuntare/togliere spunta</b> dal menu,
-senza doverla selezionare.</li>
+<li>Tasto destro su una riga di testo e scegli <b>"Barra/sbarra riga"</b> per
+tracciare (o togliere) una linea orizzontale su quella riga, senza doverla
+selezionare.</li>
 <li>Il pulsante <b>X</b> chiude la nota (il contenuto resta salvato).</li>
 <li>Tutte le note vengono salvate automaticamente e ripristinate al riavvio.</li>
 <li><b>Ctrl+N</b> crea una nuova nota da qualsiasi punto dell'app.</li>
