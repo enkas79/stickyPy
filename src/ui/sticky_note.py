@@ -18,7 +18,7 @@ COLORS = ["#FFF59D", "#A5D6A7", "#90CAF9", "#F48FB1", "#FFCC80", "#CE93D8"]
 
 
 class StickyNote(QWidget):
-    """Post-it flottante sempre in primo piano, senza bordi di sistema."""
+    """Post-it senza bordi di sistema, che resta sul desktop senza coprire le altre finestre."""
 
     closed = pyqtSignal(str)  # emesso con l'id della nota quando viene chiusa
     changed = pyqtSignal()  # emesso quando testo/posizione/colore cambiano
@@ -26,9 +26,7 @@ class StickyNote(QWidget):
     def __init__(self, data: NoteData):
         super().__init__(
             None,
-            Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.Tool
-            | Qt.WindowType.WindowStaysOnTopHint,
+            Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool,
         )
         self.data = data
         self._drag_offset: QPoint | None = None
