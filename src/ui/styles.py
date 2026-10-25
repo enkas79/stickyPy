@@ -70,7 +70,7 @@ def is_dark_theme(theme: str) -> bool:
 
 def note_qss(s: Swatch) -> str:
     return f"""
-QWidget#note {{ background: transparent; }}
+QWidget#note {{ background: rgba(0,0,0,1); }}  /* alpha 1: su Windows alpha 0 lascia passare il mouse */
 QWidget#noteFrame {{ background: {s.body}; border: 1px solid {s.header}; border-radius: 8px; }}
 QWidget#noteHeader {{ background: {s.header}; border-top-left-radius: 7px; border-top-right-radius: 7px; }}
 QWidget#noteToolbar {{ background: {s.body}; border-top: 1px solid {s.header};
