@@ -70,10 +70,11 @@ def is_dark_theme(theme: str) -> bool:
 
 def note_qss(s: Swatch) -> str:
     return f"""
-QWidget#note {{ background: {s.header}; }}
-QWidget#noteFrame {{ background: {s.body}; border: none; }}
-QWidget#noteHeader {{ background: {s.header}; }}
-QWidget#noteToolbar {{ background: {s.body}; border-top: 1px solid {s.header}; }}
+QWidget#note {{ background: transparent; }}
+QWidget#noteFrame {{ background: {s.body}; border: 1px solid {s.header}; border-radius: 8px; }}
+QWidget#noteHeader {{ background: {s.header}; border-top-left-radius: 7px; border-top-right-radius: 7px; }}
+QWidget#noteToolbar {{ background: {s.body}; border-top: 1px solid {s.header};
+    border-bottom-left-radius: 7px; border-bottom-right-radius: 7px; }}
 QTextEdit {{ background: {s.body}; color: {s.text}; border: none; padding: 8px;
     font-family: {FONT}; font-size: 15px; selection-background-color: #0F6CBD; selection-color: #FFFFFF; }}
 QToolButton {{ background: transparent; color: {s.text}; border: none; border-radius: 4px;

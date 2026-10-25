@@ -6,9 +6,11 @@ import time
 
 from PyQt6.QtCore import QBuffer, QByteArray, QIODevice, Qt, pyqtSignal
 from PyQt6.QtGui import (
+    QColor,
     QFont,
     QImage,
     QKeySequence,
+    QPainter,
     QShortcut,
     QTextCharFormat,
     QTextListFormat,
@@ -93,6 +95,7 @@ class StickyNote(QWidget):
         self.data = data
         self._dark = dark
         self.setObjectName("note")
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setMouseTracking(True)
         self.setMinimumSize(220, 180)
         self.setWindowTitle("Sticky Notes")
@@ -104,7 +107,7 @@ class StickyNote(QWidget):
 
     # --- costruzione ---
     def _build_ui(self) -> None:
-        # Bordo opaco di RESIZE_MARGIN px: è la zona di ridimensionamento.
+        # Bordo quasi trasparente di RESIZE_MARGIN px: è la zona di ridimensionamento.
         outer = QVBoxLayout(self)
         outer.setContentsMargins(RESIZE_MARGIN, RESIZE_MARGIN, RESIZE_MARGIN, RESIZE_MARGIN)
         frame = QWidget()
@@ -273,6 +276,14 @@ class StickyNote(QWidget):
         self.data.text = self.text_edit.toHtml()
         self.data.modified = time.time()
         self.changed.emit()
+
+    def paintEvent(self, event) -> None:
+        # Alpha 1/255: invisibile, ma su Windows i pixel con alpha 0 lasciano passare il mouse
+        # e il bordo di resize non riceverebbe gli eventi.
+        painter = QPainter(self)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+        painter.fillRect(self.rect(), QColor(0, 0, 0, 1))
+        painter.end()
 
     def _edges_at(self, pos) -> Qt.Edge:
         edges = Qt.Edge(0)
