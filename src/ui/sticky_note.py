@@ -274,6 +274,40 @@ class StickyNote(QWidget):
         self.data.modified = time.time()
         self.changed.emit()
 
+    def _edges_at(self, pos) -> Qt.Edge:
+        edges = Qt.Edge(0)
+        if pos.x() <= RESIZE_MARGIN:
+            edges |= Qt.Edge.LeftEdge
+        elif pos.x() >= self.width() - RESIZE_MARGIN:
+            edges |= Qt.Edge.RightEdge
+        if pos.y() <= RESIZE_MARGIN:
+            edges |= Qt.Edge.TopEdge
+        elif pos.y() >= self.height() - RESIZE_MARGIN:
+            edges |= Qt.Edge.BottomEdge
+        return edges
+
+    def mouseMoveEvent(self, event) -> None:
+        edges = self._edges_at(event.position().toPoint())
+        horizontal = bool(edges & (Qt.Edge.LeftEdge | Qt.Edge.RightEdge))
+        vertical = bool(edges & (Qt.Edge.TopEdge | Qt.Edge.BottomEdge))
+        if horizontal and vertical:
+            main_diagonal = edges in (Qt.Edge.LeftEdge | Qt.Edge.TopEdge, Qt.Edge.RightEdge | Qt.Edge.BottomEdge)
+            self.setCursor(Qt.CursorShape.SizeFDiagCursor if main_diagonal else Qt.CursorShape.SizeBDiagCursor)
+        elif horizontal:
+            self.setCursor(Qt.CursorShape.SizeHorCursor)
+        elif vertical:
+            self.setCursor(Qt.CursorShape.SizeVerCursor)
+        else:
+            self.unsetCursor()
+        super().mouseMoveEvent(event)
+
+    def mousePressEvent(self, event) -> None:
+        edges = self._edges_at(event.position().toPoint())
+        handle = self.windowHandle()
+        if event.button() == Qt.MouseButton.LeftButton and edges and handle is not None:
+            handle.startSystemResize(edges)
+        super().mousePressEvent(event)
+
     def closeEvent(self, event) -> None:
         self.closed.emit(self.data.id)
         super().closeEvent(event)

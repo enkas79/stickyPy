@@ -84,3 +84,13 @@ def test_colore_e_immagine(sticky):
     note.text_edit.insert_image(QImage(40, 40, QImage.Format.Format_RGB32))
     assert "<img" in note.text_edit.toHtml()
     assert "<img" in note.data.text
+
+
+def test_bordi_di_resize(sticky):
+    from PyQt6.QtCore import QPoint, Qt
+
+    sticky.create_new_note()
+    note = next(iter(sticky.notes.values()))
+    assert note._edges_at(QPoint(1, 100)) == Qt.Edge.LeftEdge
+    assert note._edges_at(QPoint(note.width() - 1, note.height() - 1)) == Qt.Edge.RightEdge | Qt.Edge.BottomEdge
+    assert not note._edges_at(QPoint(note.width() // 2, note.height() // 2))
