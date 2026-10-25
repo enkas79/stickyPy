@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QAction, QIcon, QKeySequence, QPixmap, QPainter, QColor, QShortcut
 from PyQt6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
@@ -27,12 +27,21 @@ def _build_tray_icon() -> QIcon:
     return QIcon(pixmap)
 
 
+SAVE_DEBOUNCE_MS = 800
+
+
 class StickyPyApp:
     """Orchestratore dell'app: system tray, finestra di gestione, note attive."""
 
     def __init__(self, app: QApplication):
         self.app = app
         self.notes: dict[str, StickyNote] = {}
+
+        # Debounce: raggruppa le modifiche ravvicinate in un solo salvataggio
+        self._save_timer = QTimer(app)
+        self._save_timer.setSingleShot(True)
+        self._save_timer.setInterval(SAVE_DEBOUNCE_MS)
+        self._save_timer.timeout.connect(self._persist_notes)
 
         self.manager_window = ManagerWindow(
             new_note_callback=self.create_new_note,
@@ -131,7 +140,7 @@ class StickyPyApp:
     def _create_note_widget(self, data: NoteData) -> None:
         note = StickyNote(data)
         note.closed.connect(self._on_note_closed)
-        note.changed.connect(self._persist_notes)
+        note.changed.connect(self._schedule_save)
         note.show()
         self.notes[data.id] = note
 
@@ -139,7 +148,11 @@ class StickyPyApp:
         self.notes.pop(note_id, None)
         self._persist_notes()
 
+    def _schedule_save(self) -> None:
+        self._save_timer.start()
+
     def _persist_notes(self) -> None:
+        self._save_timer.stop()
         save_notes([note.data for note in self.notes.values()])
 
     def quit(self) -> None:
