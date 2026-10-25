@@ -32,7 +32,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install -r requirements.txt
+      - run: pip install -r requirements-dev.txt
       # onedir (default, senza --onefile): una vera cartella applicazione
       # sotto Program Files; NSIS impacchetta l'intera dist\StickyPy\.
       - run: pyinstaller --noconfirm --windowed --name StickyPy --add-data "version.txt;." src/main.py
@@ -55,7 +55,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install -r requirements.txt
+      - run: pip install -r requirements-dev.txt
       - run: pyinstaller --noconfirm --windowed --name StickyPy --add-data "version.txt:." src/main.py
       - name: Build dmg
         run: |
@@ -74,7 +74,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install -r requirements.txt
+      - run: pip install -r requirements-dev.txt
       - run: pyinstaller --noconfirm --onefile --name stickypy --add-data "version.txt:." src/main.py
       - name: Assemble .deb tree
         run: |

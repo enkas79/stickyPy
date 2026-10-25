@@ -10,6 +10,7 @@ python src/main.py
 
 ## Test
 ```
+pip install -r requirements-dev.txt
 pytest
 ```
 
