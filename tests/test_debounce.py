@@ -17,7 +17,7 @@ def sticky(monkeypatch):
     app = QApplication.instance() or QApplication([])
     saved = []
     monkeypatch.setattr(main_mod, "save_notes", lambda notes: saved.append(len(notes)))
-    monkeypatch.setattr(main_mod, "load_notes", lambda: [])
+    monkeypatch.setattr(main_mod, "load_notes", list)
     monkeypatch.setattr(main_mod.autostart, "is_enabled", lambda: False)
     s = main_mod.StickyPyApp(app)
     s.saved = saved

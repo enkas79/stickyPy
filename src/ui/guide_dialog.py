@@ -6,25 +6,18 @@ from PyQt6.QtWidgets import QDialog, QTextBrowser, QVBoxLayout
 GUIDE_HTML = """
 <h2>Guida rapida a StickyPy</h2>
 <ul>
-<li><b>Nuova nota</b>: crea un post-it dal menu File o dall'icona nella system tray.</li>
-<li><b>Sposta</b> una nota trascinandola dalla sua barra superiore.</li>
-<li><b>Ridimensiona</b> trascinando l'angolo in basso a destra.</li>
-<li>Il pulsante <b>tavolozza</b> cambia il colore della nota.</li>
-<li>Il pulsante <b>◐</b> cicla la trasparenza della nota.</li>
-<li><b>Ctrl+rotellina</b> sul testo cambia la dimensione del carattere.</li>
-<li>Tasto destro su una riga di testo e scegli <b>"Barra/sbarra riga"</b> per
-tracciare (o togliere) una linea orizzontale su quella riga, senza doverla
-selezionare.</li>
-<li>Il pulsante <b>X</b> chiude la nota (il contenuto resta salvato).</li>
-<li>Tutte le note vengono salvate automaticamente e ripristinate al riavvio.</li>
-<li><b>Ctrl+N</b> crea una nuova nota da qualsiasi punto dell'app.</li>
-<li>Dal menu <b>Aiuto</b> puoi controllare gli aggiornamenti disponibili.</li>
-<li>Abilita l'<b>avvio automatico</b> dal menu File o dal menu del tray
-("Avvia con il PC") per far partire StickyPy con il PC.</li>
-<li>Dalla finestra <b>Gestione note</b> vedi l'elenco di tutte le note aperte:
-doppio click per portarne una in primo piano, oppure usa "Porta tutte in
-primo piano" dal menu del tray.</li>
-<li>Dal menu File puoi <b>esportare tutte le note in un file .txt</b> come backup.</li>
+<li><b>+</b> (in alto a sinistra nella nota, o <b>Ctrl+N</b>): nuova nota.</li>
+<li>Trascina la <b>barra superiore</b> per spostare la nota; l'angolo in basso a destra la ridimensiona.</li>
+<li><b>&#8943;</b>: cambia colore (giallo, verde, rosa, viola, blu, grigio, antracite),
+apre l'elenco note o elimina la nota (<b>Ctrl+D</b>).</li>
+<li><b>&#10005;</b> (o <b>Ctrl+W</b>) chiude la nota: resta salvata nell'elenco. Una nota vuota chiusa viene eliminata.</li>
+<li>Barra in basso: <b>grassetto</b> (Ctrl+B), <b>corsivo</b> (Ctrl+I), <b>sottolineato</b> (Ctrl+U),
+<b>barrato</b> (Ctrl+T), <b>elenco puntato</b> (Ctrl+Maiusc+L), <b>immagine</b> (anche incollandola).</li>
+<li><b>Elenco note</b> (clic sull'icona nella system tray): cerca, apri (doppio clic) o elimina (tasto destro).</li>
+<li><b>Impostazioni</b> (ingranaggio): tema chiaro/scuro/di sistema e conferma prima di eliminare.</li>
+<li>Le note aperte vengono ripristinate al riavvio; il salvataggio è automatico.</li>
+<li>Abilita <b>Avvia con il PC</b> dal menu File o dal tray per l'avvio automatico all'accensione.</li>
+<li>Dal menu <b>Aiuto</b> puoi controllare gli aggiornamenti.</li>
 </ul>
 """
 

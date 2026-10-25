@@ -7,11 +7,21 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QAction, QIcon, QKeySequence, QPixmap, QPainter, QColor, QShortcut
+from PyQt6.QtGui import (
+    QAction,
+    QColor,
+    QIcon,
+    QKeySequence,
+    QPainter,
+    QPixmap,
+    QShortcut,
+)
 from PyQt6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
 from src.core import autostart
-from src.core.storage import NoteData, load_notes, save_notes
+from src.core.settings import AppSettings
+from src.core.storage import NoteData, is_empty, load_notes, save_notes
+from src.ui import styles
 from src.ui.manager_window import ManagerWindow
 from src.ui.sticky_note import StickyNote
 
@@ -35,7 +45,10 @@ class StickyPyApp:
 
     def __init__(self, app: QApplication):
         self.app = app
-        self.notes: dict[str, StickyNote] = {}
+        self.settings = AppSettings()
+        self.all_data: dict[str, NoteData] = {}  # tutte le note (aperte e solo in elenco)
+        self.notes: dict[str, StickyNote] = {}  # finestre delle note aperte
+        self._quitting = False
 
         # Debounce: raggruppa le modifiche ravvicinate in un solo salvataggio
         self._save_timer = QTimer(app)
@@ -46,8 +59,12 @@ class StickyPyApp:
         self.manager_window = ManagerWindow(
             new_note_callback=self.create_new_note,
             quit_callback=self.quit,
-            get_notes_callback=lambda: self.notes,
+            get_notes_callback=lambda: self.all_data,
             toggle_autostart_callback=self.set_autostart,
+            open_note_callback=self.open_note,
+            delete_note_callback=self.delete_note,
+            settings=self.settings,
+            settings_changed_callback=self.apply_theme,
         )
 
         self.tray_icon = QSystemTrayIcon(_build_tray_icon(), app)
@@ -60,6 +77,10 @@ class StickyPyApp:
         self._new_note_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
         self._new_note_shortcut.activated.connect(self.create_new_note)
 
+        app.aboutToQuit.connect(self._on_session_end)
+        app.commitDataRequest.connect(self._on_session_end)  # spegnimento/logoff: non perdere le note aperte
+
+        self.apply_theme()
         self._load_existing_notes()
 
     def _build_tray_menu(self) -> None:
@@ -128,24 +149,78 @@ class StickyPyApp:
             note.raise_()
             note.activateWindow()
 
+    def apply_theme(self) -> None:
+        dark = styles.is_dark_theme(self.settings.theme)
+        self.app.setStyleSheet(styles.app_qss(dark))
+        self.manager_window.set_dark(dark)
+        for note in self.notes.values():
+            note.refresh_style(dark)
+
     def _load_existing_notes(self) -> None:
         for data in load_notes():
-            self._create_note_widget(data)
+            self.all_data[data.id] = data
+            if data.is_open:
+                self._create_note_widget(data)
 
     def create_new_note(self) -> None:
         data = NoteData()
+        offset = 32 * (len(self.notes) % 8)
+        data.x += offset
+        data.y += offset
+        self.all_data[data.id] = data
         self._create_note_widget(data)
         self._persist_notes()
 
-    def _create_note_widget(self, data: NoteData) -> None:
-        note = StickyNote(data)
+    def open_note(self, note_id: str) -> None:
+        data = self.all_data.get(note_id)
+        if data is None:
+            return
+        note = self.notes.get(note_id)
+        if note is None:
+            data.is_open = True
+            note = self._create_note_widget(data)
+            self._persist_notes()
+        note.show()
+        note.raise_()
+        note.activateWindow()
+
+    def delete_note(self, note_id: str) -> None:
+        if note_id not in self.all_data:
+            return
+        if self.settings.confirm_delete:
+            answer = QMessageBox.question(
+                self.manager_window,
+                "Elimina nota",
+                "Eliminare questa nota? L'operazione non si può annullare.",
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+        del self.all_data[note_id]
+        note = self.notes.pop(note_id, None)
+        if note is not None:
+            note.close()
+        self._persist_notes()
+
+    def _create_note_widget(self, data: NoteData) -> StickyNote:
+        note = StickyNote(data, dark=styles.is_dark_theme(self.settings.theme))
         note.closed.connect(self._on_note_closed)
         note.changed.connect(self._schedule_save)
+        note.new_requested.connect(self.create_new_note)
+        note.list_requested.connect(self._show_manager)
+        note.delete_requested.connect(self.delete_note)
         note.show()
         self.notes[data.id] = note
+        return note
 
     def _on_note_closed(self, note_id: str) -> None:
-        self.notes.pop(note_id, None)
+        if self._quitting or note_id not in self.notes:
+            return
+        del self.notes[note_id]
+        data = self.all_data[note_id]
+        if is_empty(data):  # come Sticky Notes: una nota vuota chiusa sparisce
+            del self.all_data[note_id]
+        else:
+            data.is_open = False
         self._persist_notes()
 
     def _schedule_save(self) -> None:
@@ -153,9 +228,16 @@ class StickyPyApp:
 
     def _persist_notes(self) -> None:
         self._save_timer.stop()
-        save_notes([note.data for note in self.notes.values()])
+        save_notes(list(self.all_data.values()))
+        if self.manager_window.isVisible():
+            self.manager_window.refresh()
+
+    def _on_session_end(self) -> None:
+        self._quitting = True
+        self._persist_notes()
 
     def quit(self) -> None:
+        self._quitting = True
         self._persist_notes()
         self.tray_icon.hide()
         self.app.quit()
@@ -171,7 +253,7 @@ def main() -> int:
 
     sticky_app = StickyPyApp(app)
 
-    if not sticky_app.notes:
+    if not sticky_app.all_data:
         sticky_app.create_new_note()
 
     return app.exec()
