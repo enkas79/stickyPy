@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (
 from src.core.storage import COLOR_NAMES, NoteData, html_to_plain
 from src.ui import styles
 
-RESIZE_MARGIN = 6
+RESIZE_MARGIN = 5
 IMAGE_FILTER = "Immagini (*.png *.jpg *.jpeg *.bmp *.gif)"
 
 
@@ -93,7 +93,6 @@ class StickyNote(QWidget):
         self.data = data
         self._dark = dark
         self.setObjectName("note")
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setMouseTracking(True)
         self.setMinimumSize(220, 180)
         self.setWindowTitle("Sticky Notes")
@@ -105,7 +104,7 @@ class StickyNote(QWidget):
 
     # --- costruzione ---
     def _build_ui(self) -> None:
-        # Bordo trasparente di RESIZE_MARGIN px: è la zona di ridimensionamento.
+        # Bordo opaco di RESIZE_MARGIN px: è la zona di ridimensionamento.
         outer = QVBoxLayout(self)
         outer.setContentsMargins(RESIZE_MARGIN, RESIZE_MARGIN, RESIZE_MARGIN, RESIZE_MARGIN)
         frame = QWidget()
