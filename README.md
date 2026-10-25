@@ -15,18 +15,16 @@ pytest
 ```
 
 ## Funzionalità
-- Post-it flottanti, trascinabili (maniglia dedicata), ridimensionabili e colorabili.
-- Titolo modificabile per nota (utile per raggruppare macro-argomenti).
-- Trasparenza regolabile e dimensione del testo (Ctrl+rotellina).
-- Barra/sbarra una riga di testo dal menu del tasto destro, senza selezionarla.
-- Ctrl+N per una nuova nota da qualsiasi punto dell'app.
-- Finestra "Gestione note" con elenco delle note aperte (doppio click per portarle in primo piano).
-- "Porta tutte in primo piano" dal menu del tray.
-- Esportazione di tutte le note in un file .txt di backup.
-- Salvataggio automatico di posizione, dimensione e contenuto.
-- Icona nella system tray per creare note e accedere alla gestione.
-- Avvio automatico con il sistema operativo (Windows/Linux/macOS).
-- Controllo aggiornamenti da GitHub Releases.
+Clone di Microsoft Sticky Notes:
+- Note frameless con barra superiore trascinabile, `+` per nuova nota, menu `⋯` (colori, elenco, elimina), chiusura.
+- 7 colori (giallo, verde, rosa, viola, blu, grigio, antracite) e tema chiaro/scuro/sistema.
+- Formattazione: grassetto, corsivo, sottolineato, barrato, elenco puntato, immagini (barra in basso e scorciatoie).
+- Elenco note con ricerca, apertura ed eliminazione (con conferma opzionale); le note vuote chiuse vengono eliminate.
+- Note aperte ripristinate al riavvio, salvataggio automatico.
+- Icona nella system tray, avvio automatico con il sistema operativo (Windows/Linux/macOS).
+- Controllo aggiornamenti da GitHub Releases, esportazione in .txt.
+
+Non incluso: sincronizzazione con account Microsoft e "Insights" (link/date intelligenti).
 
 ## Build installer
 Il workflow `.github/workflows/build-installers.yml` si attiva a ogni modifica di

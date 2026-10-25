@@ -1,264 +1,281 @@
-"""Widget di una singola nota adesiva (post-it) frameless e trascinabile."""
+"""Finestra di una singola nota, sul modello di Microsoft Sticky Notes."""
 from __future__ import annotations
 
-from PyQt6.QtCore import QPoint, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QMouseEvent, QTextCharFormat, QTextCursor, QWheelEvent
+import base64
+import time
+
+from PyQt6.QtCore import QBuffer, QByteArray, QIODevice, Qt, pyqtSignal
+from PyQt6.QtGui import (
+    QFont,
+    QImage,
+    QKeySequence,
+    QShortcut,
+    QTextCharFormat,
+    QTextListFormat,
+)
 from PyQt6.QtWidgets import (
+    QFileDialog,
     QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QPushButton,
+    QMenu,
     QSizeGrip,
     QTextEdit,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
-from src.core.storage import NoteData
+from src.core.storage import COLOR_NAMES, NoteData, html_to_plain
+from src.ui import styles
 
-COLORS = ["#FFF59D", "#A5D6A7", "#90CAF9", "#F48FB1", "#FFCC80", "#CE93D8"]
-OPACITIES = [1.0, 0.85, 0.7, 0.55]
-MIN_FONT_SIZE = 8
-MAX_FONT_SIZE = 32
-
-
-def looks_like_html(text: str) -> bool:
-    return "<html" in text.lower()
+IMAGE_FILTER = "Immagini (*.png *.jpg *.jpeg *.bmp *.gif)"
 
 
 class NoteTextEdit(QTextEdit):
-    """QTextEdit che permette di barrare una riga dal menu del tasto destro
-    (senza doverla selezionare) e di regolare la dimensione del testo con
-    Ctrl+rotellina."""
+    """Editor rich-text: incolla solo testo semplice e supporta le immagini."""
 
-    font_size_requested = pyqtSignal(int)  # delta (+1/-1)
+    def canInsertFromMimeData(self, source) -> bool:
+        return source.hasText() or source.hasImage()
 
-    def contextMenuEvent(self, event) -> None:  # noqa: N802
-        clicked_cursor = self.cursorForPosition(event.pos())
-        self.setTextCursor(clicked_cursor)
-        block = clicked_cursor.block()
-
-        menu = self.createStandardContextMenu()
-        # Il menu eredita lo stylesheet trasparente della nota: forziamo
-        # colori propri per restare leggibile sopra qualsiasi sfondo.
-        menu.setStyleSheet(
-            "QMenu { background-color: #FFFFFF; color: #202020; border: 1px solid #B0B0B0; }"
-            "QMenu::item { padding: 4px 20px; }"
-            "QMenu::item:selected { background-color: #D0D0D0; }"
-            "QMenu::item:disabled { color: #A0A0A0; }"
-            "QMenu::separator { height: 1px; background: #C0C0C0; margin: 4px 0; }"
-        )
-        if block.length() > 1:  # esclude righe vuote (solo il separatore di paragrafo)
-            menu.addSeparator()
-            strike_action = menu.addAction("Barra/sbarra riga")
-            strike_action.triggered.connect(lambda: self._toggle_strike(block))
-        menu.exec(event.globalPos())
-
-    def keyPressEvent(self, event) -> None:  # noqa: N802
-        # Impedisce che il testo digitato erediti la barratura applicata a
-        # una riga: la barratura vale solo per il testo già presente in
-        # quella riga al momento dell'azione, mai per ciò che si scrive dopo.
-        current_format = self.currentCharFormat()
-        if current_format.fontStrikeOut():
-            current_format.setFontStrikeOut(False)
-            self.setCurrentCharFormat(current_format)
-        super().keyPressEvent(event)
-
-    def _toggle_strike(self, block) -> None:
-        cursor = QTextCursor(block)
-        cursor.movePosition(QTextCursor.MoveOperation.StartOfBlock)
-        cursor.movePosition(QTextCursor.MoveOperation.EndOfBlock, QTextCursor.MoveMode.KeepAnchor)
-        if not cursor.hasSelection():
-            return
-        is_struck = cursor.charFormat().fontStrikeOut()
-        new_format = QTextCharFormat()
-        new_format.setFontStrikeOut(not is_struck)
-        cursor.mergeCharFormat(new_format)
-
-    def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802
-        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            delta = 1 if event.angleDelta().y() > 0 else -1
-            self.font_size_requested.emit(delta)
-            event.accept()
+    def insertFromMimeData(self, source) -> None:
+        if source.hasImage():
+            self.insert_image(source.imageData())
         else:
-            super().wheelEvent(event)
+            self.insertPlainText(source.text())
+
+    def insert_image(self, image: QImage) -> None:
+        if not isinstance(image, QImage) or image.isNull():
+            return
+        max_width = max(self.viewport().width() - 24, 64)
+        if image.width() > max_width:
+            image = image.scaledToWidth(max_width, Qt.TransformationMode.SmoothTransformation)
+        data = QByteArray()
+        buffer = QBuffer(data)
+        buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+        image.save(buffer, "PNG")
+        encoded = base64.b64encode(bytes(data)).decode("ascii")
+        self.insertHtml(f'<img src="data:image/png;base64,{encoded}" width="{image.width()}"/>')
 
 
-class DragHandle(QLabel):
-    """Maniglia con icona a croce per spostare la nota trascinandola."""
+class DragHeader(QWidget):
+    """Barra superiore: trascinandola si sposta la nota."""
 
-    def __init__(self, target: QWidget, parent=None):
-        super().__init__("✥", parent)
-        self._target = target
-        self._drag_offset: QPoint | None = None
-        self.setFixedSize(22, 22)
-        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setCursor(Qt.CursorShape.SizeAllCursor)
-        self.setToolTip("Trascina per spostare la nota")
+    def __init__(self) -> None:
+        super().__init__()
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)  # sfondo da QSS
 
-    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+    def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
-            self._drag_offset = event.globalPosition().toPoint() - self._target.pos()
+            handle = self.window().windowHandle()
+            if handle is not None:
+                handle.startSystemMove()
         super().mousePressEvent(event)
 
-    def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
-        if self._drag_offset is not None and event.buttons() & Qt.MouseButton.LeftButton:
-            self._target.move(event.globalPosition().toPoint() - self._drag_offset)
-        super().mouseMoveEvent(event)
 
-    def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802
-        self._drag_offset = None
-        super().mouseReleaseEvent(event)
+def _tool_button(text: str, tooltip: str, checkable: bool = False) -> QToolButton:
+    button = QToolButton()
+    button.setText(text)
+    button.setToolTip(tooltip)
+    button.setAccessibleName(tooltip)
+    button.setCheckable(checkable)
+    button.setFocusPolicy(Qt.FocusPolicy.TabFocus)
+    return button
 
 
 class StickyNote(QWidget):
-    """Post-it senza bordi di sistema, che resta sul desktop senza coprire le altre finestre."""
+    closed = pyqtSignal(str)  # id nota: chiusa dall'utente (resta nell'elenco)
+    changed = pyqtSignal()  # testo/posizione/colore cambiati
+    new_requested = pyqtSignal()
+    list_requested = pyqtSignal()
+    delete_requested = pyqtSignal(str)
 
-    closed = pyqtSignal(str)  # emesso con l'id della nota quando viene chiusa
-    changed = pyqtSignal()  # emesso quando testo/posizione/colore cambiano
-
-    def __init__(self, data: NoteData):
-        super().__init__(
-            None,
-            Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool,
-        )
+    def __init__(self, data: NoteData, dark: bool = False):
+        super().__init__(None, Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool)
         self.data = data
-        self._drag_offset: QPoint | None = None
+        self._dark = dark
+        self.setObjectName("note")
+        self.setMinimumSize(220, 180)
+        self.setWindowTitle("Sticky Notes")
         self._build_ui()
-        self.apply_color(data.color)
-        self._apply_font_size()
-        self.setWindowOpacity(data.opacity)
+        self._build_shortcuts()
+        self.refresh_style()
         self.move(data.x, data.y)
         self.resize(data.width, data.height)
 
+    # --- costruzione ---
     def _build_ui(self) -> None:
-        self.setWindowTitle(self.data.title)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(2)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
-        top_bar = QHBoxLayout()
-        drag_handle = DragHandle(self)
-        top_bar.addWidget(drag_handle)
-
-        color_btn = QPushButton("\U0001F3A8")
-        color_btn.setFixedSize(22, 22)
-        color_btn.setToolTip("Cambia colore")
-        color_btn.clicked.connect(self._cycle_color)
-        top_bar.addWidget(color_btn)
-
-        opacity_btn = QPushButton("◐")
-        opacity_btn.setObjectName("opacityButton")
-        opacity_btn.setFixedSize(26, 26)
-        opacity_btn.setToolTip("Cambia trasparenza (Ctrl+rotellina sul testo: dimensione carattere)")
-        opacity_btn.clicked.connect(self._cycle_opacity)
-        top_bar.addWidget(opacity_btn)
-
-        self.title_edit = QLineEdit(self.data.title)
-        self.title_edit.setToolTip("Rinomina la nota (es. per raggruppare un macro-argomento)")
-        self.title_edit.setFrame(False)
-        self.title_edit.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        self.title_edit.editingFinished.connect(self._on_title_changed)
-        self.title_edit.returnPressed.connect(lambda: self.text_edit.setFocus())
-        top_bar.addWidget(self.title_edit, 1)
-
-        close_btn = QPushButton("✕")
-        close_btn.setFixedSize(22, 22)
-        close_btn.setToolTip("Chiudi nota")
-        close_btn.clicked.connect(self._on_close)
-        top_bar.addWidget(close_btn)
-        layout.addLayout(top_bar)
+        self.header = DragHeader()
+        self.header.setObjectName("noteHeader")
+        header_layout = QHBoxLayout(self.header)
+        header_layout.setContentsMargins(4, 4, 4, 4)
+        add_btn = _tool_button("+", "Nuova nota (Ctrl+N)")
+        add_btn.clicked.connect(self.new_requested)
+        self.menu_btn = _tool_button("⋯", "Menu nota")
+        self.menu_btn.clicked.connect(self._show_menu)
+        close_btn = _tool_button("✕", "Chiudi nota (Ctrl+W)")
+        close_btn.clicked.connect(self.close)
+        header_layout.addWidget(add_btn)
+        header_layout.addStretch(1)
+        header_layout.addWidget(self.menu_btn)
+        header_layout.addWidget(close_btn)
+        root.addWidget(self.header)
 
         self.text_edit = NoteTextEdit()
-        if looks_like_html(self.data.text):
+        self.text_edit.setFrameStyle(0)
+        if "<html" in self.data.text.lower():
             self.text_edit.setHtml(self.data.text)
         else:
             self.text_edit.setPlainText(self.data.text)
-        self.text_edit.setFrameStyle(0)
         self.text_edit.textChanged.connect(self._on_text_changed)
-        self.text_edit.font_size_requested.connect(self._adjust_font_size)
-        layout.addWidget(self.text_edit)
+        self.text_edit.currentCharFormatChanged.connect(self._sync_format_buttons)
+        self.text_edit.cursorPositionChanged.connect(self._sync_format_buttons)
+        root.addWidget(self.text_edit, 1)
 
-        grip = QSizeGrip(self)
-        layout.addWidget(grip, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
+        self.toolbar = QWidget()
+        self.toolbar.setObjectName("noteToolbar")
+        tool_layout = QHBoxLayout(self.toolbar)
+        tool_layout.setContentsMargins(4, 4, 4, 4)
+        self.bold_btn = _tool_button("B", "Grassetto (Ctrl+B)", True)
+        self.italic_btn = _tool_button("I", "Corsivo (Ctrl+I)", True)
+        self.underline_btn = _tool_button("U", "Sottolineato (Ctrl+U)", True)
+        self.strike_btn = _tool_button("S", "Barrato (Ctrl+T)", True)
+        self.bullet_btn = _tool_button("•≡", "Elenco puntato (Ctrl+Maiusc+L)", True)
+        image_btn = _tool_button("🖼", "Inserisci immagine")
+        for button, style in (
+            (self.bold_btn, "bold"),
+            (self.italic_btn, "italic"),
+            (self.underline_btn, "underline"),
+            (self.strike_btn, "strike"),
+        ):
+            font = button.font()
+            font.setBold(style == "bold")
+            font.setItalic(style == "italic")
+            font.setUnderline(style == "underline")
+            font.setStrikeOut(style == "strike")
+            button.setFont(font)
+        self.bold_btn.clicked.connect(self.toggle_bold)
+        self.italic_btn.clicked.connect(self.toggle_italic)
+        self.underline_btn.clicked.connect(self.toggle_underline)
+        self.strike_btn.clicked.connect(self.toggle_strike)
+        self.bullet_btn.clicked.connect(self.toggle_bullets)
+        image_btn.clicked.connect(self.insert_image_from_file)
+        for widget in (self.bold_btn, self.italic_btn, self.underline_btn, self.strike_btn, self.bullet_btn, image_btn):
+            tool_layout.addWidget(widget)
+        tool_layout.addStretch(1)
+        tool_layout.addWidget(QSizeGrip(self), 0, Qt.AlignmentFlag.AlignBottom)
+        root.addWidget(self.toolbar)
 
-    def apply_color(self, hex_color: str) -> None:
-        self.data.color = hex_color
-        color = QColor(hex_color)
-        self.setStyleSheet(
-            f"QWidget {{ background-color: {color.name()}; }}"
-            "QTextEdit { background: transparent; border: none; }"
-            "QPushButton { background: transparent; border: none; }"
-            "QPushButton:hover { background: rgba(0,0,0,30); border-radius: 4px; }"
-            "QPushButton#opacityButton { font-size: 16px; }"
-            "QLineEdit { background: transparent; border: none; font-weight: bold; font-size: 12px; }"
-            "QLineEdit:focus { background: rgba(255,255,255,90); border-radius: 3px; }"
-            "QLabel { background: transparent; border-radius: 4px; }"
-            "QLabel:hover { background: rgba(0,0,0,30); }"
-        )
+    def _build_shortcuts(self) -> None:
+        # Ctrl+B/I/U sono già gestiti da QTextEdit; Ctrl+N è globale (main.py).
+        for sequence, slot in (
+            ("Ctrl+T", self.toggle_strike),
+            ("Ctrl+Shift+L", self.toggle_bullets),
+            ("Ctrl+D", lambda: self.delete_requested.emit(self.data.id)),
+            ("Ctrl+W", self.close),
+        ):
+            shortcut = QShortcut(QKeySequence(sequence), self)
+            shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+            shortcut.activated.connect(slot)
 
-    def _cycle_color(self) -> None:
-        current_index = COLORS.index(self.data.color) if self.data.color in COLORS else -1
-        next_color = COLORS[(current_index + 1) % len(COLORS)]
-        self.apply_color(next_color)
-        self.changed.emit()
+    # --- stile ---
+    def refresh_style(self, dark: bool | None = None) -> None:
+        if dark is not None:
+            self._dark = dark
+        self.setStyleSheet(styles.note_qss(styles.swatch_for(self.data.color, self._dark)))
 
-    def _cycle_opacity(self) -> None:
-        current_index = OPACITIES.index(self.data.opacity) if self.data.opacity in OPACITIES else 0
-        new_opacity = OPACITIES[(current_index + 1) % len(OPACITIES)]
-        self.data.opacity = new_opacity
-        self.setWindowOpacity(new_opacity)
-        self.changed.emit()
+    def set_color(self, name: str) -> None:
+        if name in COLOR_NAMES:
+            self.data.color = name
+            self.refresh_style()
+            self.changed.emit()
 
-    def _apply_font_size(self) -> None:
-        font = self.text_edit.font()
-        font.setPointSize(self.data.font_size)
-        self.text_edit.setFont(font)
+    def _show_menu(self) -> None:
+        menu = QMenu(self)
+        for name in COLOR_NAMES:
+            entry = styles.NOTE_COLORS[name]
+            swatch = styles.swatch_for(name, self._dark)
+            action = menu.addAction(styles.color_icon(swatch.body, name == self.data.color), entry.label)
+            action.triggered.connect(lambda _=False, n=name: self.set_color(n))
+        menu.addSeparator()
+        menu.addAction("Elenco note").triggered.connect(self.list_requested)
+        menu.addAction("Elimina nota").triggered.connect(lambda: self.delete_requested.emit(self.data.id))
+        menu.exec(self.menu_btn.mapToGlobal(self.menu_btn.rect().bottomLeft()))
 
-    def _adjust_font_size(self, delta: int) -> None:
-        self.data.font_size = max(MIN_FONT_SIZE, min(MAX_FONT_SIZE, self.data.font_size + delta))
-        self._apply_font_size()
-        self.changed.emit()
+    # --- formattazione ---
+    def _merge_format(self, **kwargs) -> None:
+        fmt = QTextCharFormat()
+        if "bold" in kwargs:
+            fmt.setFontWeight(QFont.Weight.Bold if kwargs["bold"] else QFont.Weight.Normal)
+        if "italic" in kwargs:
+            fmt.setFontItalic(kwargs["italic"])
+        if "underline" in kwargs:
+            fmt.setFontUnderline(kwargs["underline"])
+        if "strike" in kwargs:
+            fmt.setFontStrikeOut(kwargs["strike"])
+        self.text_edit.mergeCurrentCharFormat(fmt)
+        self.text_edit.setFocus()
 
-    def _on_title_changed(self) -> None:
-        self.data.title = self.title_edit.text().strip() or "StickyPy"
-        self.title_edit.setText(self.data.title)
-        self.setWindowTitle(self.data.title)
-        self.changed.emit()
+    def toggle_bold(self) -> None:
+        self._merge_format(bold=self.text_edit.fontWeight() != QFont.Weight.Bold)
+
+    def toggle_italic(self) -> None:
+        self._merge_format(italic=not self.text_edit.fontItalic())
+
+    def toggle_underline(self) -> None:
+        self._merge_format(underline=not self.text_edit.fontUnderline())
+
+    def toggle_strike(self) -> None:
+        self._merge_format(strike=not self.text_edit.currentCharFormat().fontStrikeOut())
+
+    def toggle_bullets(self) -> None:
+        cursor = self.text_edit.textCursor()
+        current_list = cursor.currentList()
+        if current_list is not None:
+            current_list.remove(cursor.block())
+            block_format = cursor.blockFormat()
+            block_format.setIndent(0)
+            cursor.setBlockFormat(block_format)
+        else:
+            cursor.createList(QTextListFormat.Style.ListDisc)
+        self.text_edit.setTextCursor(cursor)
+        self.text_edit.setFocus()
+        self._sync_format_buttons()
+
+    def insert_image_from_file(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, "Inserisci immagine", "", IMAGE_FILTER)
+        if path:
+            self.text_edit.insert_image(QImage(path))
+
+    def _sync_format_buttons(self, *_args) -> None:
+        fmt = self.text_edit.currentCharFormat()
+        self.bold_btn.setChecked(fmt.fontWeight() == QFont.Weight.Bold)
+        self.italic_btn.setChecked(fmt.fontItalic())
+        self.underline_btn.setChecked(fmt.fontUnderline())
+        self.strike_btn.setChecked(fmt.fontStrikeOut())
+        self.bullet_btn.setChecked(self.text_edit.textCursor().currentList() is not None)
+
+    # --- eventi / persistenza ---
+    def plain_text(self) -> str:
+        return html_to_plain(self.data.text)
 
     def _on_text_changed(self) -> None:
         self.data.text = self.text_edit.toHtml()
+        self.data.modified = time.time()
         self.changed.emit()
 
-    def _on_close(self) -> None:
-        self.close()
-
-    def closeEvent(self, event) -> None:  # noqa: N802 - override Qt
+    def closeEvent(self, event) -> None:
         self.closed.emit(self.data.id)
         super().closeEvent(event)
 
-    def moveEvent(self, event) -> None:  # noqa: N802 - override Qt
-        self.data.x = self.x()
-        self.data.y = self.y()
+    def moveEvent(self, event) -> None:
+        self.data.x, self.data.y = self.x(), self.y()
         self.changed.emit()
         super().moveEvent(event)
 
-    def resizeEvent(self, event) -> None:  # noqa: N802 - override Qt
-        self.data.width = self.width()
-        self.data.height = self.height()
+    def resizeEvent(self, event) -> None:
+        self.data.width, self.data.height = self.width(), self.height()
         self.changed.emit()
         super().resizeEvent(event)
-
-    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
-        if event.button() == Qt.MouseButton.LeftButton:
-            self._drag_offset = event.globalPosition().toPoint() - self.pos()
-        super().mousePressEvent(event)
-
-    def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
-        if self._drag_offset is not None and event.buttons() & Qt.MouseButton.LeftButton:
-            self.move(event.globalPosition().toPoint() - self._drag_offset)
-        super().mouseMoveEvent(event)
-
-    def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802
-        self._drag_offset = None
-        super().mouseReleaseEvent(event)
