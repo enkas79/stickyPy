@@ -17,7 +17,6 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
     QMenu,
-    QSizeGrip,
     QTextEdit,
     QToolButton,
     QVBoxLayout,
@@ -27,6 +26,7 @@ from PyQt6.QtWidgets import (
 from src.core.storage import COLOR_NAMES, NoteData, html_to_plain
 from src.ui import styles
 
+RESIZE_MARGIN = 6
 IMAGE_FILTER = "Immagini (*.png *.jpg *.jpeg *.bmp *.gif)"
 
 
@@ -93,6 +93,8 @@ class StickyNote(QWidget):
         self.data = data
         self._dark = dark
         self.setObjectName("note")
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setMouseTracking(True)
         self.setMinimumSize(220, 180)
         self.setWindowTitle("Sticky Notes")
         self._build_ui()
@@ -103,7 +105,14 @@ class StickyNote(QWidget):
 
     # --- costruzione ---
     def _build_ui(self) -> None:
-        root = QVBoxLayout(self)
+        # Bordo trasparente di RESIZE_MARGIN px: è la zona di ridimensionamento.
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(RESIZE_MARGIN, RESIZE_MARGIN, RESIZE_MARGIN, RESIZE_MARGIN)
+        frame = QWidget()
+        frame.setObjectName("noteFrame")
+        frame.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        outer.addWidget(frame)
+        root = QVBoxLayout(frame)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
@@ -125,6 +134,7 @@ class StickyNote(QWidget):
 
         self.text_edit = NoteTextEdit()
         self.text_edit.setFrameStyle(0)
+        self.text_edit.setPlaceholderText("Aggiungi una nota...")
         if "<html" in self.data.text.lower():
             self.text_edit.setHtml(self.data.text)
         else:
@@ -165,7 +175,6 @@ class StickyNote(QWidget):
         for widget in (self.bold_btn, self.italic_btn, self.underline_btn, self.strike_btn, self.bullet_btn, image_btn):
             tool_layout.addWidget(widget)
         tool_layout.addStretch(1)
-        tool_layout.addWidget(QSizeGrip(self), 0, Qt.AlignmentFlag.AlignBottom)
         root.addWidget(self.toolbar)
 
     def _build_shortcuts(self) -> None:
